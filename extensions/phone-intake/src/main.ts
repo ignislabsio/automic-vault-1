@@ -9,16 +9,18 @@ if (!name || !origin || !portText || process.argv.length !== 5 ||
 }
 
 // Reuse the installed signed Gate Client. An unsigned fork cannot impersonate it.
+// The bundled client stays paired with the helper when the root-owned CLI is older.
+const av = "/Applications/Automic Vault.app/Contents/MacOS/av";
 const signature = Bun.spawn([
   "/usr/bin/codesign", "--verify", "--strict", "-R",
   '=anchor apple generic and identifier "com.automicvault.av" and certificate leaf[subject.OU] = "ZU76A67LGU"',
-  "/usr/local/bin/av",
+  av,
 ], { stdout: "ignore", stderr: "ignore" });
 if (await signature.exited !== 0) {
   console.error("The installed av Gate Client failed signature verification. No prompt created.");
   process.exit(1);
 }
-const help = Bun.spawn(["/usr/local/bin/av", "save", "--help"], { stdout: "pipe", stderr: "ignore" });
+const help = Bun.spawn([av, "save", "--help"], { stdout: "pipe", stderr: "ignore" });
 if (await help.exited !== 0 || !(await new Response(help.stdout).text()).includes("--available-while-locked")) {
   console.error("The installed signed av does not support --available-while-locked. No prompt created or Secret accepted.");
   process.exit(1);
@@ -32,7 +34,7 @@ if (!build.success || build.outputs.length !== 1) {
 const intake = await guardian({
   name, origin: new URL(origin).origin, script: await build.outputs[0].text(),
   async save(key, value) {
-    const child = Bun.spawn(["/usr/local/bin/av", "save", "--stdin", "--available-while-locked", key], {
+    const child = Bun.spawn([av, "save", "--stdin", "--available-while-locked", key], {
       stdin: "pipe", stdout: "ignore", stderr: "ignore",
     });
     const timer = setTimeout(() => child.kill(), 180_000);
