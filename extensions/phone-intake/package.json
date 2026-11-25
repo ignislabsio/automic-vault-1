@@ -1,0 +1,19 @@
+{
+  "name": "av-phone-intake",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --target ESNext --module ESNext --moduleResolution bundler --lib ESNext,DOM --types bun --skipLibCheck src/*.ts test/*.ts verify/*.ts",
+    "verify:transport": "bun verify/browser.ts --live-yopass"
+  },
+  "dependencies": {
+    "openpgp": "6.3.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "playwright": "1.62.1",
+    "typescript": "7.0.2"
+  }
+}
