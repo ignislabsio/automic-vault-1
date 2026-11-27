@@ -12,8 +12,13 @@ import Security
 import SwiftUI
 @preconcurrency import XPC
 
+#if IGNIS_VAULT_LOCAL
+private let approvalServiceName = "com.ignislabs.automicvault.approval"
+private let approvalLaunchAgentName = "com.ignislabs.automicvault.menubar-helper"
+#else
 private let approvalServiceName = "com.automicvault.av2.approval"
 private let approvalLaunchAgentName = "com.automicvault.menubar-helper"
+#endif
 private let openMainWindowArgument = "--open-main-window"
 private let pendingMainWindowKey = "pendingMainWindow"
 private let pendingSecretGateKey = "pendingSecretGate"
@@ -161,10 +166,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         startServicesAndOpenMainWindowIfRequested()
+        #if !IGNIS_VAULT_LOCAL
         startAutomaticUpdateChecks()
+        #endif
         maintainAuthorizationHistoryIfDue()
         #if !DEBUG
+        #if !IGNIS_VAULT_LOCAL
         startDailyHeartbeat()
+        #endif
         #endif
     }
 
@@ -523,6 +532,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor @objc private func checkForUpdates() {
+        #if IGNIS_VAULT_LOCAL
+        return
+        #else
         guard !isStartingUp else { return }
         guard !isCheckingForUpdates else { return }
         isCheckingForUpdates = true
@@ -531,6 +543,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor [weak self] in
             await self?.performUpdateCheck()
         }
+        #endif
     }
 
     @MainActor @objc private func installCLI() {
@@ -2422,7 +2435,7 @@ func avExecutableURL() -> URL {
     {
         return bundled
     }
-    return URL(fileURLWithPath: "/usr/local/bin/av")
+    return URL(fileURLWithPath: installedAVCLIPath)
 }
 
 private func processArgumentVector(_ pid: pid_t) -> [String]? {
@@ -4142,6 +4155,11 @@ private final class ApprovalServer: @unchecked Sendable {
         guard let teamIdentifier = selfTeamIdentifier() else {
             throw AppError("missing menu bar signing team identifier")
         }
+        #if IGNIS_VAULT_LOCAL
+        guard teamIdentifier == "8G29DNN4U4",
+              Bundle.main.bundleIdentifier == vaultBundleIdentifier
+        else { throw AppError("invalid Ignis local signing identity") }
+        #endif
         self.serviceName = serviceName
         self.temporaryAccessGrants = temporaryAccessGrants
         self.liveSecretUses = liveSecretUses
@@ -4170,6 +4188,12 @@ private final class ApprovalServer: @unchecked Sendable {
         }
         guard let listener else { throw AppError("approval XPC listener failed") }
 
+        #if IGNIS_VAULT_LOCAL
+        let requirement = """
+        anchor apple generic and certificate leaf[subject.OU] = "8G29DNN4U4" and \
+        (identifier "com.ignislabs.automicvault" or identifier "com.automicvault.av")
+        """
+        #else
         let requirement = """
         anchor apple generic and certificate leaf[subject.OU] = \(teamIdentifier) and \
         (identifier "com.automicvault" or identifier "com.automicvault.av" or \
@@ -4180,6 +4204,7 @@ private final class ApprovalServer: @unchecked Sendable {
         identifier "gh" or identifier "com.github.cli" or identifier "stripe" or \
         identifier "supabase" or identifier "supabase-go" or identifier "com.supabase.cli")
         """
+        #endif
         let status = requirement.withCString {
             xpc_connection_set_peer_code_signing_requirement(listener, $0)
         }
@@ -4283,6 +4308,12 @@ private final class ApprovalServer: @unchecked Sendable {
             reply(peer, to: message, ok: false, error: "Gate Client is not trusted")
             return
         }
+        #if IGNIS_VAULT_LOCAL
+        guard op.supportsIgnisLocalCustody else {
+            reply(peer, to: message, ok: false, error: "Operation unavailable in the Ignis local build")
+            return
+        }
+        #endif
         let mutationCaller = MutationCaller(
             pid: pid,
             identity: identity,
@@ -10637,7 +10668,7 @@ private func isAllowedCaller(path: String, signing: SigningInfo) -> Bool {
 
 private func isTrustedMenuHelperCaller(path: String, signing: SigningInfo) -> Bool {
     URL(fileURLWithPath: path).lastPathComponent == "AutomicVaultMenubar"
-        && signing.identifier == "com.automicvault"
+        && signing.identifier == vaultBundleIdentifier
 }
 
 private func isTrustedAvCaller(path: String, signing: SigningInfo) -> Bool {

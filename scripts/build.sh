@@ -3,6 +3,7 @@ set -euo pipefail
 
 run=0
 install=0
+ignis_local=0
 dmg=0
 notarize=0
 release_artifact=0
@@ -23,6 +24,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --run) run=1 ;;
     --install) install=1 ;;
+    --ignis-local) ignis_local=1 ;;
     --dmg) dmg=1 ;;
     --notarize) notarize=1 ;;
     --release-artifact) release_artifact=1; dmg=1; notarize=1 ;;
@@ -37,7 +39,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "usage: $0 [--run] [--install] [--dmg] [--notarize] [--release-artifact] [--wmo] [--version VERSION]" >&2
+      echo "usage: $0 [--run] [--install] [--dmg] [--notarize] [--release-artifact] [--ignis-local] [--wmo] [--version VERSION]" >&2
       exit 64
       ;;
   esac
@@ -87,6 +89,19 @@ else
   APP_VERSION="${APP_VERSION:-$VERSION}"
 fi
 
+if [[ "$ignis_local" -eq 1 ]]; then
+  if [[ "$install" -eq 1 || "$dmg" -eq 1 || "$notarize" -eq 1 || "$release_artifact" -eq 1 ]]; then
+    echo "error: --ignis-local produces a local app bundle only" >&2
+    exit 64
+  fi
+  : "${IGNIS_VAULT_PROFILE:?error: --ignis-local requires IGNIS_VAULT_PROFILE}"
+  : "${IGNIS_VAULT_SIGNING_IDENTITY:?error: --ignis-local requires IGNIS_VAULT_SIGNING_IDENTITY (certificate SHA-1)}"
+  if [[ ! -f "$IGNIS_VAULT_PROFILE" || ! "$IGNIS_VAULT_SIGNING_IDENTITY" =~ ^[A-F0-9]{40}$ ]]; then
+    echo "error: invalid Ignis provisioning profile path or certificate fingerprint" >&2
+    exit 64
+  fi
+fi
+
 MENU_HELPER="$ROOT/src/menu-helper"
 SWIFT_TARGET="$ROOT/target/swift"
 APP="$SWIFT_TARGET/Automic Vault.app"
@@ -109,6 +124,22 @@ LAUNCH_AGENTS="$CONTENTS/Library/LaunchAgents"
 LAUNCH_AGENT_NAME="com.automicvault.menubar-helper"
 LAUNCH_AGENT_PLIST="$LAUNCH_AGENTS/$LAUNCH_AGENT_NAME.plist"
 INSTALLED_LAUNCH_AGENT="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_NAME.plist"
+CARGO_TARGET="$ROOT/target"
+cargo_flavor_args=()
+if [[ "$ignis_local" -eq 1 ]]; then
+  APP="$SWIFT_TARGET/Ignis Automic Vault.app"
+  CONTENTS="$APP/Contents"
+  MACOS="$CONTENTS/MacOS"
+  RESOURCES="$CONTENTS/Resources"
+  LAUNCH_AGENTS="$CONTENTS/Library/LaunchAgents"
+  LAUNCH_AGENT_NAME="com.ignislabs.automicvault.menubar-helper"
+  LAUNCH_AGENT_PLIST="$LAUNCH_AGENTS/$LAUNCH_AGENT_NAME.plist"
+  MENU_HELPER_PROFILE="$IGNIS_VAULT_PROFILE"
+  PRIVATE_KEYCHAIN_ACCESS_GROUP="8G29DNN4U4.com.ignislabs.automicvault"
+  APPROVAL_KEYCHAIN_ACCESS_GROUP="8G29DNN4U4.com.ignislabs.automicvault.approval"
+  CARGO_TARGET="$ROOT/target/ignis-local"
+  cargo_flavor_args=(--features ignis-local --target-dir "$CARGO_TARGET")
+fi
 
 assert_no_embedded_entitlements() {
   local executable="$1"
@@ -151,8 +182,8 @@ assert_private_keychain_entitlement() {
   fi
 }
 
-cargo build --release --locked --manifest-path "$ROOT/Cargo.toml"
-AV_CLI_REVISION="$("$ROOT/target/release/av" __version)"
+cargo build --release --locked --manifest-path "$ROOT/Cargo.toml" ${cargo_flavor_args[@]+"${cargo_flavor_args[@]}"}
+AV_CLI_REVISION="$("$CARGO_TARGET/release/av" __version)"
 if [[ ! "$AV_CLI_REVISION" =~ ^[0-9]+$ ]]; then
   echo "error: invalid av install revision: $AV_CLI_REVISION" >&2
   exit 64
@@ -171,6 +202,10 @@ if [[ "$wmo" -eq 1 ]]; then
   swift_build_args+=(-Xswiftc -whole-module-optimization)
 else
   swift_build_args+=(-Xswiftc -no-whole-module-optimization)
+fi
+if [[ "$ignis_local" -eq 1 ]]; then
+  swift_build_args[1]=native
+  swift_build_args+=(-Xswiftc -DIGNIS_VAULT_LOCAL)
 fi
 swift build "${swift_build_args[@]}"
 SWIFT_BIN="$(
@@ -191,6 +226,13 @@ if [[ "$release_artifact" -eq 1 ]]; then
   plutil -insert PostHogAPIKey -string "$POSTHOG_API_KEY" "$CONTENTS/Info.plist"
 fi
 cp "$MENU_HELPER/LaunchAgent.plist" "$LAUNCH_AGENT_PLIST"
+if [[ "$ignis_local" -eq 1 ]]; then
+  plutil -replace CFBundleIdentifier -string com.ignislabs.automicvault "$CONTENTS/Info.plist"
+  plutil -replace CFBundleName -string "Ignis Automic Vault" "$CONTENTS/Info.plist"
+  plutil -remove CFBundleURLTypes "$CONTENTS/Info.plist"
+  plutil -replace Label -string "$LAUNCH_AGENT_NAME" "$LAUNCH_AGENT_PLIST"
+  plutil -replace MachServices -json '{"com.ignislabs.automicvault.approval":true}' "$LAUNCH_AGENT_PLIST"
+fi
 cp "$MENU_HELPER/Resources/NSMenuItem.png" "$RESOURCES/NSMenuItem.png"
 cp "$MENU_HELPER/Resources/AppIcon.icon/Assets/Shield.png" "$RESOURCES/LoadingShield.png"
 cp "$MENU_HELPER/Resources/SponsorshipOffice.png" "$RESOURCES/SponsorshipOffice.png"
@@ -268,7 +310,16 @@ if [[ "$release_artifact" -eq 1 && ! -f "$MENU_HELPER_PROFILE" ]]; then
   exit 64
 fi
 # Resolve the certificate itself so renewing an identity invalidates cached signatures.
-if [[ "$identity" != "-" ]]; then
+if [[ "$ignis_local" -eq 1 ]]; then
+  identity="$IGNIS_VAULT_SIGNING_IDENTITY"
+  if ! security find-identity -v -p codesigning | awk -v cert="$identity" '
+    $2 == cert && /Apple Development/ { found = 1 }
+    END { exit !found }
+  '; then
+    echo "error: Ignis Apple Development signing identity is unavailable" >&2
+    exit 64
+  fi
+elif [[ "$identity" != "-" ]]; then
   identity="$(security find-identity -v -p codesigning |
     awk -F '"' -v name="$identity" '$2 == name { split($1, fields, " "); print fields[2]; exit }')"
   [[ -n "$identity" ]] || { echo "error: signing identity disappeared" >&2; exit 1; }
@@ -278,17 +329,19 @@ sign_code() {
 }
 
 codesign_args=(--force --sign "$identity" --options runtime)
-if [[ "$identity" != "-" ]]; then
+if [[ "$ignis_local" -eq 1 ]]; then
+  codesign_args+=(--timestamp=none)
+elif [[ "$identity" != "-" ]]; then
   codesign_args+=(--timestamp)
 fi
 
 sign_code "${codesign_args[@]}" --identifier com.automicvault.launcher-bundle-runner "$RESOURCES/AutomicVaultLauncher"
 sign_code "${codesign_args[@]}" --identifier com.automicvault.varlock-plugin-helper "$RESOURCES/AutomicVaultVarlockPlugin"
 assert_no_embedded_entitlements "$RESOURCES/AutomicVaultVarlockPlugin"
-cp "$ROOT/target/release/av" "$MACOS/av"
-cp "$ROOT/target/release/av-gpg" "$MACOS/av-gpg"
-cp "$ROOT/target/release/av-brew-stub" "$MACOS/av-brew-stub"
-cp "$ROOT/target/release/av-proxy-helper" "$MACOS/av-proxy-helper"
+cp "$CARGO_TARGET/release/av" "$MACOS/av"
+cp "$CARGO_TARGET/release/av-gpg" "$MACOS/av-gpg"
+cp "$CARGO_TARGET/release/av-brew-stub" "$MACOS/av-brew-stub"
+cp "$CARGO_TARGET/release/av-proxy-helper" "$MACOS/av-proxy-helper"
 sign_code "${codesign_args[@]}" --identifier com.automicvault.av "$MACOS/av"
 sign_code "${codesign_args[@]}" --identifier com.automicvault.av-gpg "$MACOS/av-gpg"
 sign_code "${codesign_args[@]}" --identifier com.automicvault.av-brew-stub "$MACOS/av-brew-stub"
@@ -311,8 +364,13 @@ assert_no_embedded_entitlements "$MACOS/av-brew-stub"
 app_codesign_args=("${codesign_args[@]}")
 if [[ -f "$MENU_HELPER_PROFILE" && "$identity" != "-" ]]; then
   cp "$MENU_HELPER_PROFILE" "$CONTENTS/embedded.provisionprofile"
-  security cms -D -i "$MENU_HELPER_PROFILE" |
-    plutil -extract Entitlements xml1 -o "$MENU_HELPER_ENTITLEMENTS" -
+  if [[ "$ignis_local" -eq 1 ]]; then
+    security cms -D -i "$MENU_HELPER_PROFILE" |
+      python3 "$ROOT/scripts/ignis-local-entitlements.py" "$identity" >"$MENU_HELPER_ENTITLEMENTS"
+  else
+    security cms -D -i "$MENU_HELPER_PROFILE" |
+      plutil -extract Entitlements xml1 -o "$MENU_HELPER_ENTITLEMENTS" -
+  fi
   plutil -replace keychain-access-groups -json \
     "[\"$PRIVATE_KEYCHAIN_ACCESS_GROUP\",\"$APPROVAL_KEYCHAIN_ACCESS_GROUP\"]" \
     "$MENU_HELPER_ENTITLEMENTS"
@@ -324,6 +382,10 @@ codesign --verify --strict "$MACOS/av-gpg"
 codesign --verify --strict "$MACOS/av-brew-stub"
 codesign --verify --strict "$MACOS/av-proxy-helper"
 codesign --verify --strict "$APP"
+if [[ "$ignis_local" -eq 1 ]]; then
+  codesign --verify --strict -R '=anchor apple generic and certificate leaf[subject.OU] = "8G29DNN4U4" and identifier "com.ignislabs.automicvault"' "$APP"
+  codesign --verify --strict -R '=anchor apple generic and certificate leaf[subject.OU] = "8G29DNN4U4" and identifier "com.automicvault.av"' "$MACOS/av"
+fi
 if [[ -f "$MENU_HELPER_PROFILE" && "$identity" != "-" ]]; then
   assert_private_keychain_entitlement "$APP"
 fi

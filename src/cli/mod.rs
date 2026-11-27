@@ -216,6 +216,18 @@ where
         command
     };
 
+    if cfg!(feature = "ignis-local")
+        && !matches!(
+            command.to_str(),
+            Some("save" | "list" | "ls" | "history" | "settings" | "inject"
+                | "scan" | "doctor" | "hardeners" | "__dashboard-hardening-json"
+                | "__secret-gates-json" | "detectors")
+        )
+    {
+        let _ = writeln!(stderr, "av: command is unavailable in the Ignis local build");
+        return 2;
+    }
+
     match command.to_str() {
         Some("__install-launcher-bundle") if rest.len() == 6 => {
             let (Some(bundle_name), Some(command_name), Some(generation), Some(tree_sha256)) = (

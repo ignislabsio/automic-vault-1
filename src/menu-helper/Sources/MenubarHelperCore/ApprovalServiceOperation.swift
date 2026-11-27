@@ -90,6 +90,18 @@ public enum ApprovalServiceOperation: String, CaseIterable, Sendable {
     case stripeSave = "stripe-save"
     case stripeDelete = "stripe-delete"
 
+    public var supportsIgnisLocalCustody: Bool {
+        switch self {
+        case .openWindow, .save, .saveAvailableWhileLocked, .saveIfAbsentOrEqual, .delete,
+             .inject, .injectFd, .keys, .authorize, .list, .listSources,
+             .history, .historyWindow, .historyRead, .historyNext,
+             .settingsList, .settingsGet, .settingsSet:
+            true
+        default:
+            false
+        }
+    }
+
     public var disclosesProtectedMetadata: Bool {
         self == .list || self == .listSources || self == .history || self == .historyWindow
             || self == .historyRead || self == .historyNext

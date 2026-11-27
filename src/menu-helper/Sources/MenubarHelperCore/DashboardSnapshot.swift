@@ -24,7 +24,13 @@ private let secretMutationKeychainAccount = "PendingSecretMutationV1"
 private let secretMutationLock = NSLock()
 private let secretGatePolicyLock = NSRecursiveLock()
 private let accessRequestLogLock = NSLock()
+#if IGNIS_VAULT_LOCAL
+public let vaultBundleIdentifier = "com.ignislabs.automicvault"
+private let canonicalKeychainAccessGroup = "8G29DNN4U4.com.ignislabs.automicvault"
+#else
+public let vaultBundleIdentifier = "com.automicvault"
 private let canonicalKeychainAccessGroup = "ZU76A67LGU.com.automicvault"
+#endif
 
 public struct DashboardSnapshot: Equatable, Sendable {
     public var detectors: [DetectorMetadata]
@@ -2259,7 +2265,7 @@ final class ProductionAuthorizationHistoryStore: @unchecked Sendable {
               ).first
         else { return nil }
         let url = applicationSupport
-            .appendingPathComponent("com.automicvault", isDirectory: true)
+            .appendingPathComponent(vaultBundleIdentifier, isDirectory: true)
             .appendingPathComponent("AuthorizationHistory", isDirectory: true)
             .appendingPathComponent("History-v1.sqlite3")
         guard let key = loadOrCreateAuthorizationHistoryEncryptionKey(
@@ -3681,7 +3687,7 @@ func verifyKeychainDataAfterConditionalAdd(
 
 private func addCanonicalAccessGroup(to query: inout [String: Any]) {
     // Swift package tests are not signed as the app and cannot claim its group.
-    guard Bundle.main.bundleIdentifier == "com.automicvault" else { return }
+    guard Bundle.main.bundleIdentifier == vaultBundleIdentifier else { return }
     query[kSecAttrAccessGroup as String] = canonicalKeychainAccessGroup
 }
 

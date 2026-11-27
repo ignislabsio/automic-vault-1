@@ -20,7 +20,7 @@ Injects named Keychain secrets into COMMAND's environment (default --mode=env).
 FD mode delivers each Secret through an anonymous pipe at FD (3 or higher),
 requires Approval, and removes the named variables from COMMAND's environment.";
 
-const APPROVAL_SERVICE: &str = "com.automicvault.av2.approval";
+use crate::APPROVAL_SERVICE;
 const PATH_SCRIPT_INTERPRETERS: &[&str] = &["uv"];
 type SecretValues = BTreeMap<String, String>;
 
@@ -1622,7 +1622,7 @@ fn xpc_approve_request_with_socket(
         Ok(array)
     }
 
-    let service = CString::new(APPROVAL_SERVICE).unwrap();
+    let service = APPROVAL_SERVICE;
     let connection =
         unsafe { xpc_connection_create_mach_service(service.as_ptr(), std::ptr::null_mut(), 0) };
     if connection.is_null() {
@@ -1761,7 +1761,7 @@ fn xpc_approve_request_with_socket(
     let result = (|| unsafe {
         if xpc_get_type(reply) == std::ptr::addr_of!(_xpc_type_error).cast() {
             if crate::approval_service_connection_invalid(reply) {
-                Err(crate::approval_service_unavailable_message(&service).into())
+                Err(crate::approval_service_unavailable_message(service).into())
             } else {
                 let error = xpc_dictionary_get_string(reply, _xpc_error_key_description);
                 let error = if error.is_null() {

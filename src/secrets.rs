@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-const APPROVAL_SERVICE: &str = "com.automicvault.av2.approval";
+use crate::APPROVAL_SERVICE;
 const ALIYUN_HELPER_PROTOCOL_VERSION: u64 = 1;
 const REGISTRY_HELPER_PROTOCOL_VERSION: u64 = 3;
 const OXIDE_HELPER_PROTOCOL_VERSION: u64 = 1;
@@ -1005,7 +1005,7 @@ fn xpc_request_with_project_directory(
     let cwd = xpc_operation_requires_cwd(operation)
         .then(crate::path_security::current_working_directory_utf8)
         .transpose()?;
-    let service = CString::new(APPROVAL_SERVICE).unwrap();
+    let service = APPROVAL_SERVICE;
     let connection =
         unsafe { xpc_connection_create_mach_service(service.as_ptr(), std::ptr::null_mut(), 0) };
     if connection.is_null() {
@@ -1084,7 +1084,7 @@ fn xpc_request_with_project_directory(
             let result = unsafe {
                 if reply_is_error {
                     if crate::approval_service_connection_invalid(reply) {
-                        Err(crate::approval_service_unavailable_message(&service).into())
+                        Err(crate::approval_service_unavailable_message(service).into())
                     } else {
                         let error = xpc_dictionary_get_string(reply, _xpc_error_key_description);
                         let error = if error.is_null() {

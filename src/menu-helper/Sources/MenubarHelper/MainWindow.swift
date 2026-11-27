@@ -2160,7 +2160,11 @@ private func detectorSeveritySortPriority(_ severity: String?) -> Int {
     severity.map(isMediumDetectorSeverity) == true ? 1 : 0
 }
 
+#if IGNIS_VAULT_LOCAL
+let installedAVCLIPath = "/Applications/Ignis Automic Vault.app/Contents/MacOS/av"
+#else
 let installedAVCLIPath = "/usr/local/bin/av"
+#endif
 
 enum CLIInstallState: Sendable, Equatable {
     case missing
@@ -2323,6 +2327,9 @@ private func cliInstallerScript(sourcePath: String, requirement: String) -> Stri
 
 @MainActor
 func installBundledCLI() async throws -> Bool {
+    #if IGNIS_VAULT_LOCAL
+    return false
+    #else
     guard !isInstallingCLI else { return false }
     isInstallingCLI = true
     defer { isInstallingCLI = false }
@@ -2332,6 +2339,7 @@ func installBundledCLI() async throws -> Bool {
     let installed = try await runCLIInstallerScript(cliInstallerScript(sourcePath: bundledAVURL.path, requirement: requirement))
     if installed { NotificationCenter.default.post(name: cliInstallationDidFinish, object: nil) }
     return installed
+    #endif
 }
 
 private func managedPackageUpdateScript(names: [String]) -> String? {

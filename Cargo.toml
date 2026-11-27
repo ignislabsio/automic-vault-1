@@ -3,6 +3,9 @@ name = "av"
 version = "4.25.2"
 edition = "2024"
 
+[features]
+ignis-local = []
+
 [profile.release]
 opt-level = "z"
 lto = "fat"
