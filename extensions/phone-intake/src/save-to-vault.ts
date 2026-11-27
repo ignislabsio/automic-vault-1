@@ -1,3 +1,5 @@
+import { requireProtectedExecutable } from "./protected-path";
+
 type SaveChild = {
   pid: number;
   exitCode: number | null;
@@ -48,5 +50,3 @@ export async function saveToVault(
     if (child.exitCode === null) child.kill();
   }
 }
-import { requireProtectedExecutable } from "./protected-path";
-
