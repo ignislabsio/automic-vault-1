@@ -504,7 +504,7 @@ final class DashboardModel: ObservableObject {
     }
 
     private func items(for section: DashboardSection) -> [DashboardItem] {
-        let base = switch section {
+        let sectionItems = switch section {
         case .overview: [DashboardItem]()
         case .detectors:
             detectorItems
@@ -651,6 +651,13 @@ final class DashboardModel: ObservableObject {
                 ),
             ]
         }
+        #if IGNIS_VAULT_LOCAL
+        let base = section == .settings
+            ? sectionItems.filter { $0.id != "ssh-agent" && $0.id != "gpg-signing" }
+            : sectionItems
+        #else
+        let base = sectionItems
+        #endif
         if section == .secretUsage { return base }
         let query = searchQuery
         guard !query.isEmpty else { return base }
@@ -2160,7 +2167,7 @@ private func detectorSeveritySortPriority(_ severity: String?) -> Int {
     severity.map(isMediumDetectorSeverity) == true ? 1 : 0
 }
 
-let installedAVCLIPath = "/usr/local/bin/av"
+let installedAVCLIPath = vaultCLIPath
 
 enum CLIInstallState: Sendable, Equatable {
     case missing
@@ -2323,6 +2330,9 @@ private func cliInstallerScript(sourcePath: String, requirement: String) -> Stri
 
 @MainActor
 func installBundledCLI() async throws -> Bool {
+    #if IGNIS_VAULT_LOCAL
+    return false
+    #else
     guard !isInstallingCLI else { return false }
     isInstallingCLI = true
     defer { isInstallingCLI = false }
@@ -2332,6 +2342,7 @@ func installBundledCLI() async throws -> Bool {
     let installed = try await runCLIInstallerScript(cliInstallerScript(sourcePath: bundledAVURL.path, requirement: requirement))
     if installed { NotificationCenter.default.post(name: cliInstallationDidFinish, object: nil) }
     return installed
+    #endif
 }
 
 private func managedPackageUpdateScript(names: [String]) -> String? {

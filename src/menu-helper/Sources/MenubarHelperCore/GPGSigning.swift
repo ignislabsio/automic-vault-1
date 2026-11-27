@@ -253,6 +253,9 @@ public func configureGitForGPGSigning(
     programURL: URL,
     environment: [String: String]? = nil
 ) throws {
+    #if IGNIS_VAULT_LOCAL
+    throw GPGSigningConfigurationError.gitFailed("GPG Signing is unavailable in the Ignis local build")
+    #else
     guard programURL.path.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: programURL.path)
     else { throw GPGSigningConfigurationError.programUnavailable(programURL.path) }
     for arguments in [
@@ -276,6 +279,7 @@ public func configureGitForGPGSigning(
             throw GPGSigningConfigurationError.gitFailed(detail)
         }
     }
+    #endif
 }
 
 public enum GPGSigningConfigurationError: LocalizedError {

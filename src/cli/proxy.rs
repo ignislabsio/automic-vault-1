@@ -365,7 +365,7 @@ fn start_session(request: &StartRequest) -> Result<SessionEnvironment, String> {
         })
     }
 
-    let service = c"com.automicvault.av2.approval";
+    let service = crate::APPROVAL_SERVICE;
     let connection =
         unsafe { xpc_connection_create_mach_service(service.as_ptr(), std::ptr::null_mut(), 0) };
     if connection.is_null() {

@@ -216,6 +216,32 @@ where
         command
     };
 
+    if cfg!(feature = "ignis-local")
+        && !matches!(
+            command.to_str(),
+            Some(
+                "save"
+                    | "list"
+                    | "ls"
+                    | "history"
+                    | "settings"
+                    | "inject"
+                    | "scan"
+                    | "doctor"
+                    | "hardeners"
+                    | "__dashboard-hardening-json"
+                    | "__secret-gates-json"
+                    | "detectors"
+            )
+        )
+    {
+        let _ = writeln!(
+            stderr,
+            "av: command is unavailable in the Ignis local build"
+        );
+        return 2;
+    }
+
     match command.to_str() {
         Some("__install-launcher-bundle") if rest.len() == 6 => {
             let (Some(bundle_name), Some(command_name), Some(generation), Some(tree_sha256)) = (
@@ -1312,6 +1338,25 @@ mod tests {
             assert_eq!(stdout, "");
             assert_eq!(stderr, format!("{USAGE}\n"));
         }
+    }
+
+    #[cfg(feature = "ignis-local")]
+    #[test]
+    fn ignis_local_command_dispatch() {
+        for command in ["harden", "__install-launcher-bundle", "uaa-credential"] {
+            let (code, stdout, stderr) = run_args(&["av", command]);
+            assert_eq!(code, 2, "{command}");
+            assert_eq!(stdout, "", "{command}");
+            assert_eq!(
+                stderr, "av: command is unavailable in the Ignis local build\n",
+                "{command}"
+            );
+        }
+
+        let (code, stdout, stderr) = run_args(&["av", "scan", "--bad"]);
+        assert_eq!(code, 2);
+        assert_eq!(stdout, "");
+        assert_eq!(stderr, format!("{USAGE}\n"));
     }
 
     #[test]

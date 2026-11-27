@@ -24,10 +24,11 @@ fn ci_tests_optimized_and_executable_boundaries() {
     assert!(CARGO_MANIFEST.contains("[profile.test-release]"));
     assert!(CARGO_MANIFEST.contains("inherits = \"release\""));
     assert!(CARGO_MANIFEST.contains("debug-assertions = true"));
-    assert!(
-        CI_WORKFLOW
-            .contains("cargo test --profile test-release --all-targets --all-features --locked")
-    );
+    assert!(CI_WORKFLOW.contains("cargo test --all-targets --locked"));
+    assert!(CI_WORKFLOW.contains("cargo test --profile test-release --all-targets --locked"));
+    assert!(CI_WORKFLOW.contains(
+        "cargo test --features ignis-local --lib --locked cli::tests::ignis_local_command_dispatch -- --exact"
+    ));
     assert!(CI_WORKFLOW.contains("scripts/test-menu-helper-self-checks.sh"));
     assert!(CI_WORKFLOW.contains("scripts/test-varlock-plugin-helper.sh"));
 }
@@ -271,7 +272,7 @@ fn macos_app_uses_its_violet_accent() {
 #[test]
 fn git_signing_adapter_is_hardened_and_bundled_without_a_privileged_install() {
     assert!(BUILD_SCRIPT.contains("--identifier com.automicvault.av-gpg \"$MACOS/av-gpg\""));
-    assert!(BUILD_SCRIPT.contains("cp \"$ROOT/target/release/av-gpg\" \"$MACOS/av-gpg\""));
+    assert!(BUILD_SCRIPT.contains("cp \"$CARGO_TARGET/release/av-gpg\" \"$MACOS/av-gpg\""));
     assert!(BUILD_SCRIPT.contains("codesign --verify --strict \"$MACOS/av-gpg\""));
     assert!(!INSTALL_SCRIPT.contains("Contents/MacOS/av-gpg"));
 }
@@ -280,7 +281,7 @@ fn git_signing_adapter_is_hardened_and_bundled_without_a_privileged_install() {
 fn proxy_helper_is_sandboxed_signed_inside_out_and_has_no_keychain_authority() {
     assert!(
         BUILD_SCRIPT
-            .contains("cp \"$ROOT/target/release/av-proxy-helper\" \"$MACOS/av-proxy-helper\"")
+            .contains("cp \"$CARGO_TARGET/release/av-proxy-helper\" \"$MACOS/av-proxy-helper\"")
     );
     assert!(BUILD_SCRIPT.contains("--identifier com.automicvault.av-proxy-helper"));
     assert!(BUILD_SCRIPT.contains("--entitlements \"$PROXY_HELPER_ENTITLEMENTS\""));

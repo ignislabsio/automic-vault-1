@@ -1,19 +1,33 @@
 import { guardian } from "./guardian";
+import { vaultTarget } from "./vault-target";
+import { saveToVault } from "./save-to-vault";
+import { requireProtectedExecutable } from "./protected-path";
 
-const [name, origin, portText] = process.argv.slice(2);
-if (!name || !origin || !portText || process.argv.length !== 5 ||
+const args = process.argv.slice(2);
+const ignisLocal = args[0] === "--ignis-local";
+if (ignisLocal) args.shift();
+const [name, origin, portText] = args;
+if (!name || !origin || !portText || args.length !== 3 ||
     !/^https:\/\/[a-z0-9.-]+\.ts\.net(?::[0-9]+)?$/.test(origin) ||
     !/^[0-9]+$/.test(portText) || Number(portText) < 1024 || Number(portText) > 65535) {
-  console.error("Usage: bun src/main.ts SECRET_NAME https://HOST.ts.net[:PORT] LOCAL_PORT");
+  console.error("Usage: bun src/main.ts [--ignis-local] SECRET_NAME https://HOST.ts.net[:PORT] LOCAL_PORT");
   process.exit(1);
 }
 
-// Reuse the installed signed Gate Client. An unsigned fork cannot impersonate it.
-// The bundled client stays paired with the helper when the root-owned CLI is older.
-const av = "/Applications/Automic Vault.app/Contents/MacOS/av";
+// The Ignis build has its own signer and fresh custody; it cannot impersonate
+// the upstream app. Always keep the client paired with its selected helper.
+const target = vaultTarget(ignisLocal);
+const av = target.executable;
+if (target.requiresProtectedPath) {
+  try { await requireProtectedExecutable(av); }
+  catch {
+    console.error("The Ignis vault needs its protected administrator-installed location. No prompt created or Secret accepted.");
+    process.exit(1);
+  }
+}
 const signature = Bun.spawn([
   "/usr/bin/codesign", "--verify", "--strict", "-R",
-  '=anchor apple generic and identifier "com.automicvault.av" and certificate leaf[subject.OU] = "ZU76A67LGU"',
+  target.requirement,
   av,
 ], { stdout: "ignore", stderr: "ignore" });
 if (await signature.exited !== 0) {
@@ -34,17 +48,7 @@ if (!build.success || build.outputs.length !== 1) {
 const intake = await guardian({
   name, origin: new URL(origin).origin, script: await build.outputs[0].text(),
   async save(key, value) {
-    const child = Bun.spawn([av, "save", "--stdin", "--available-while-locked", key], {
-      stdin: "pipe", stdout: "ignore", stderr: "ignore",
-    });
-    const timer = setTimeout(() => child.kill(), 180_000);
-    try {
-      child.stdin.write(value);
-      child.stdin.end();
-      if (await child.exited !== 0) throw new Error("Vault did not acknowledge save");
-    } finally {
-      clearTimeout(timer);
-    }
+    await saveToVault(target, key, value);
   },
 });
 const server = Bun.serve({

@@ -10,7 +10,11 @@ public enum ICloudApprovalRootKeyError: Error, Equatable {
 public struct ICloudApprovalRootKey: Sendable {
     public static let service = "com.automicvault.approval"
     public static let account = "account-root-key-v1"
+#if IGNIS_VAULT_LOCAL
+    public static let accessGroup = "8G29DNN4U4.com.ignislabs.automicvault.approval"
+#else
     public static let accessGroup = "ZU76A67LGU.com.automicvault.approval"
+#endif
 
     public static func hasActiveICloudAccount(
         identityToken: Any? = FileManager.default.ubiquityIdentityToken
