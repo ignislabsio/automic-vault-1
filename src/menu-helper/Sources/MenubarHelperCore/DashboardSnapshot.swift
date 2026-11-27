@@ -26,9 +26,11 @@ private let secretGatePolicyLock = NSRecursiveLock()
 private let accessRequestLogLock = NSLock()
 #if IGNIS_VAULT_LOCAL
 public let vaultBundleIdentifier = "com.ignislabs.automicvault"
+public let vaultCLIPath = "/Library/Application Support/Ignis/Automic Vault.app/Contents/MacOS/av"
 private let canonicalKeychainAccessGroup = "8G29DNN4U4.com.ignislabs.automicvault"
 #else
 public let vaultBundleIdentifier = "com.automicvault"
+public let vaultCLIPath = "/usr/local/bin/av"
 private let canonicalKeychainAccessGroup = "ZU76A67LGU.com.automicvault"
 #endif
 
@@ -3864,5 +3866,5 @@ public func defaultAVExecutableURL() -> URL {
     {
         return bundled
     }
-    return URL(fileURLWithPath: "/usr/local/bin/av")
+    return URL(fileURLWithPath: vaultCLIPath)
 }

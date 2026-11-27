@@ -2167,11 +2167,7 @@ private func detectorSeveritySortPriority(_ severity: String?) -> Int {
     severity.map(isMediumDetectorSeverity) == true ? 1 : 0
 }
 
-#if IGNIS_VAULT_LOCAL
-let installedAVCLIPath = "/Applications/Ignis Automic Vault.app/Contents/MacOS/av"
-#else
-let installedAVCLIPath = "/usr/local/bin/av"
-#endif
+let installedAVCLIPath = vaultCLIPath
 
 enum CLIInstallState: Sendable, Equatable {
     case missing

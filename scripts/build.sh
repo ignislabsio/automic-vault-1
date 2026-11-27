@@ -128,6 +128,7 @@ CARGO_TARGET="$ROOT/target"
 cargo_flavor_args=()
 if [[ "$ignis_local" -eq 1 ]]; then
   APP="$SWIFT_TARGET/Ignis Automic Vault.app"
+  INSTALLED_APP="/Library/Application Support/Ignis/Automic Vault.app"
   CONTENTS="$APP/Contents"
   MACOS="$CONTENTS/MacOS"
   RESOURCES="$CONTENTS/Resources"
@@ -231,6 +232,9 @@ if [[ "$ignis_local" -eq 1 ]]; then
   plutil -replace CFBundleName -string "Ignis Automic Vault" "$CONTENTS/Info.plist"
   plutil -remove CFBundleURLTypes "$CONTENTS/Info.plist"
   plutil -replace Label -string "$LAUNCH_AGENT_NAME" "$LAUNCH_AGENT_PLIST"
+  plutil -replace ProgramArguments -json \
+    "[\"$INSTALLED_APP/Contents/MacOS/AutomicVaultMenubar\"]" \
+    "$LAUNCH_AGENT_PLIST"
   plutil -replace MachServices -json '{"com.ignislabs.automicvault.approval":true}' "$LAUNCH_AGENT_PLIST"
 fi
 cp "$MENU_HELPER/Resources/NSMenuItem.png" "$RESOURCES/NSMenuItem.png"

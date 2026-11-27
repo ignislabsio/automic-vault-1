@@ -13,9 +13,13 @@ generic Secret storage and application, metadata, and approved settings.
 Build with `IGNIS_VAULT_PROFILE` pointing to the Apple profile and
 `IGNIS_VAULT_SIGNING_IDENTITY` set to the installed Apple Development certificate
 fingerprint, then run `scripts/build.sh --ignis-local`. The result is
-`target/swift/Ignis Automic Vault.app`. Use the bundled CLI directly. The build
-does not install the app or overwrite the upstream CLI. The packaged app does
-not use the upstream updater or install CLI shims.
+`target/swift/Ignis Automic Vault.app`. The installed path is
+`/Library/Application Support/Ignis/Automic Vault.app`. Installation requires
+an administrator to establish root ownership, non-writable group and world
+permissions, and no symlinks or ACL grants to write on the path and app. Use
+the bundled CLI directly. The build does not install the app or overwrite the
+upstream CLI. The packaged app does not use the upstream updater or install
+CLI shims.
 
 Start with fresh Secret Values and Authorization Policy. The provisioning
 profile must authorize each target Mac. Keep the signing key under human
