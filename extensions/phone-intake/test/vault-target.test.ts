@@ -5,7 +5,8 @@ test("local fork and upstream intake never borrow one another's publisher", () =
   const upstream = vaultTarget(false);
   const local = vaultTarget(true);
   expect(upstream.executable).toBe("/Applications/Automic Vault.app/Contents/MacOS/av");
-  expect(local.executable).toBe("/Applications/Ignis Automic Vault.app/Contents/MacOS/av");
+  expect(local.executable).toBe("/Library/Application Support/Ignis/Automic Vault.app/Contents/MacOS/av");
+  expect(local.requiresProtectedPath).toBe(true);
   expect(local.requirement).toContain('anchor apple generic');
   expect(local.requirement).toContain('identifier "com.automicvault.av"');
   expect(local.requirement).toContain('"8G29DNN4U4"');

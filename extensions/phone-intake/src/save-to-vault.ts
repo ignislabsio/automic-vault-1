@@ -30,9 +30,10 @@ const runtime: Runtime = {
 };
 
 export async function saveToVault(
-  target: { executable: string; requirement: string }, name: string, value: string,
+  target: { executable: string; requirement: string; requiresProtectedPath?: boolean }, name: string, value: string,
   execution: Runtime = runtime,
 ) {
+  if (target.requiresProtectedPath) await requireProtectedExecutable(target.executable);
   const child = execution.spawnSave(target.executable, name);
   const timer = setTimeout(() => child.kill(), 180_000);
   try {
@@ -47,3 +48,5 @@ export async function saveToVault(
     if (child.exitCode === null) child.kill();
   }
 }
+import { requireProtectedExecutable } from "./protected-path";
+

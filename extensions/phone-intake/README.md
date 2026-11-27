@@ -30,15 +30,21 @@ bun src/main.ts COMPANY_SERVICE_API_KEY https://YOUR-MAC.YOUR-TAILNET.ts.net:866
 
 For the separately signed local Ignis build, add `--ignis-local` before the
 Secret Name. This selects only the Ignis app at
-`/Applications/Ignis Automic Vault.app`, signed by Ignis team `8G29DNN4U4`.
+`/Library/Application Support/Ignis/Automic Vault.app`, signed by Ignis team `8G29DNN4U4`.
 The default still selects only the upstream publisher. Neither mode accepts
 an arbitrary client path or signer. The Ignis app uses fresh custody and its
 own Approval setup; an upstream phone enrollment does not approve its saves.
 Building or installing this app is not proof of phone or locked-Mac delivery.
-Immediately before sending a Value, the guardian starts the selected client
+For Ignis intake, every component of the installed executable path must be
+root-owned, non-writable by group/others, free of symlinks and extended ACLs.
+Check this before creating a prompt and again before starting a save. A copy
+under the writable Applications directory does not qualify. The guardian
+starts the selected client only after that protected-installation check,
 with an empty stdin pipe, validates that running process's exact signer, and
 then writes only to that same pipe. Replacing a pathname after prompt creation
-cannot substitute an unsigned recipient. Failed verification sends no Value.
+requires privilege beyond the modeled same-user attacker. Failed verification
+sends no Value. Live process verification alone is not a protected-installation
+substitute: a malicious initial executable could pass its pipe to another process.
 
 Use a dedicated, reviewed tailnet listener; do not reuse a public Funnel route.
 Only the printed phone link carries the one-request bearer capability. Treat

@@ -1,6 +1,7 @@
 import { guardian } from "./guardian";
 import { vaultTarget } from "./vault-target";
 import { saveToVault } from "./save-to-vault";
+import { requireProtectedExecutable } from "./protected-path";
 
 const args = process.argv.slice(2);
 const ignisLocal = args[0] === "--ignis-local";
@@ -17,6 +18,13 @@ if (!name || !origin || !portText || args.length !== 3 ||
 // the upstream app. Always keep the client paired with its selected helper.
 const target = vaultTarget(ignisLocal);
 const av = target.executable;
+if (target.requiresProtectedPath) {
+  try { await requireProtectedExecutable(av); }
+  catch {
+    console.error("The Ignis vault needs its protected administrator-installed location. No prompt created or Secret accepted.");
+    process.exit(1);
+  }
+}
 const signature = Bun.spawn([
   "/usr/bin/codesign", "--verify", "--strict", "-R",
   target.requirement,
