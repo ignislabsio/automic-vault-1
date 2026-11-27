@@ -21,7 +21,7 @@ test("a replaced or exited vault client receives no plaintext", async () => {
       },
     })).rejects.toThrow("live signature verification");
     expect(writes).toEqual([]);
-    expect(killed).toBe(true);
+    expect(killed).toBe(exitCode === null);
   }
 });
 
