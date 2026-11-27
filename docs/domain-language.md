@@ -536,11 +536,17 @@ surface whether or not the relay is available. The Mac continues to verify the
 exact Authorization Request, reject stale or replayed responses, persist the
 required Authorization Record, and enforce the resulting Authorization Decision.
 
-The responding iPhone requires an active, App Store-verified iPhone Approval
+In the upstream distribution, the responding iPhone requires an active, App Store-verified iPhone Approval
 subscription to carry an allow response. Missing, expired, revoked, or
 unverified subscription state fails closed but does not prevent denial. A
 subscription is product eligibility, not Authorization Policy or authority to
 release a Secret.
+
+The private `IgnisLocal` distribution instead uses build-time internal
+eligibility with distinct Ignis signing and an independent Approval Keychain
+group and relay. It does not evaluate the upstream StoreKit products. This
+exception changes product eligibility only: explicit human Approval, configured
+biometrics, complete request binding, and Mac enforcement remain required.
 
 iPhone Approval changes where the human decision occurs, not whether an exact
 Authorization Decision may receive memory-only transient reuse. Reuse is bound
