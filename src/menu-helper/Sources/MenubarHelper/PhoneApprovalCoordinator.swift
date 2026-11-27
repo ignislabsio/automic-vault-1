@@ -7,7 +7,11 @@ import Security
 
 let phoneApprovalEnabledDefaultsKey = "phoneApprovalEnabled"
 private let phoneApprovalMacIDDefaultsKey = "phoneApprovalMacID"
+#if IGNIS_VAULT_LOCAL
+private let phoneApprovalRelayURL = URL(string: "https://ignis.cloudforest-pineapplefish.ts.net:8665")!
+#else
 private let phoneApprovalRelayURL = URL(string: "https://approval-relay.automicvault.com")!
+#endif
 
 nonisolated func phoneApprovalIsEnabled() -> Bool {
     UserDefaults.standard.bool(forKey: phoneApprovalEnabledDefaultsKey)

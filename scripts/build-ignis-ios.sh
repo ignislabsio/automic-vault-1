@@ -5,7 +5,7 @@ set -euo pipefail
 : "${IGNIS_VAULT_IOS_NOTIFICATION_PROFILE:?Set the path to the Ignis iOS notification extension provisioning profile}"
 : "${IGNIS_VAULT_SIGNING_IDENTITY:?Set the Apple signing certificate fingerprint}"
 
-if [[ $# -ne 1 || -z "$1" ]]; then
+if [[ $# -ne 1 || "$1" != /* || -e "$1" ]]; then
     echo 'Usage: scripts/build-ignis-ios.sh <archive-path>' >&2
     exit 2
 fi
@@ -63,6 +63,7 @@ notification_profile_uuid="$(install_profile "$IGNIS_VAULT_IOS_NOTIFICATION_PROF
 project="$(cd "$(dirname "$0")/../src/ios/ApprovalApp" && pwd)/AutomicVaultApproval.xcodeproj"
 exec xcodebuild -project "$project" -scheme AutomicVaultApproval \
     -configuration IgnisLocal -destination 'generic/platform=iOS' \
+    -derivedDataPath "$(dirname "$1")/DerivedData" \
     -archivePath "$1" \
     "APS_ENVIRONMENT=$aps_environment" \
     "IGNIS_VAULT_SIGNING_IDENTITY=$IGNIS_VAULT_SIGNING_IDENTITY" \
