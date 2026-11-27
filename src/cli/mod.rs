@@ -1340,6 +1340,25 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ignis-local")]
+    #[test]
+    fn ignis_local_command_dispatch() {
+        for command in ["harden", "__install-launcher-bundle", "uaa-credential"] {
+            let (code, stdout, stderr) = run_args(&["av", command]);
+            assert_eq!(code, 2, "{command}");
+            assert_eq!(stdout, "", "{command}");
+            assert_eq!(
+                stderr, "av: command is unavailable in the Ignis local build\n",
+                "{command}"
+            );
+        }
+
+        let (code, stdout, stderr) = run_args(&["av", "scan", "--bad"]);
+        assert_eq!(code, 2);
+        assert_eq!(stdout, "");
+        assert_eq!(stderr, format!("{USAGE}\n"));
+    }
+
     #[test]
     fn help_describes_commands_and_required_arguments() {
         for help in ["help", "--help"] {
