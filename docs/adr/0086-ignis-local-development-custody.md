@@ -36,3 +36,11 @@ The notification extension uses the same isolated group and its own bundle ID.
 Successful signing does not establish enrollment, notification delivery,
 locked phone intake, or iCloud delivery. Verify runtime policy and custody
 separately on each Mac before using operational Values.
+
+The Ignis relay binds only to loopback behind Tailscale Serve. Serve strips
+client-supplied identity headers and supplies the authenticated user's login;
+the relay accepts exactly the configured owner. Loopback callers remain inside
+the trusted host boundary. This check is an ingress restriction, never native
+Approval authority: room credentials, request binding and human Approval remain
+required. Installer routes serve only the three fixed, read-only assets loaded
+at startup; the IPA must match the independently validated signed export.
