@@ -87,7 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return formatter
     }()
     private var approval: ApprovalServer?
+    #if !IGNIS_VAULT_LOCAL
     private let sshAgent = SSHAgentRuntime.shared
+    #endif
     private var scanWorkItem: DispatchWorkItem?
     private var scanBurstStartedAt: TimeInterval?
     private var pendingFullScan = false
@@ -403,7 +405,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = brandImage()
         statusItem.button?.alphaValue = 1
         _ = migrateBackgroundKeychainItems()
+        #if !IGNIS_VAULT_LOCAL
         _ = migrateLegacyGPGSigningSecrets()
+        #endif
         _ = backfillBlessedScriptReviewedContents()
         autoApprovals = loadAccessRequestRecords().compactMap(autoApprovalRecord)
         refreshAutoApprovalMenuItems()
@@ -458,7 +462,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             try approval.start()
             self.approval = approval
+            #if !IGNIS_VAULT_LOCAL
             sshAgent.startObserving()
+            #endif
             scheduleScan(after: 0)
             scanQueue.async { [weak self] in
                 let metadata = loadDetectorMetadata(avExecutableURL: avExecutableURL())
@@ -485,7 +491,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopServices() {
         servicesStopped = true
+        #if !IGNIS_VAULT_LOCAL
         sshAgent.stop()
+        #endif
         temporaryAccessGrants.cancelAll()
         refreshTemporaryAccessGrants()
         temporaryAccessGrantTimer?.invalidate()

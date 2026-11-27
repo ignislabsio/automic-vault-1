@@ -187,6 +187,9 @@ public func sshAgentConfig(_ existing: String, socketPath: String?) throws -> St
 }
 
 public func configureOpenSSHAgent(enabled: Bool, home: URL = FileManager.default.homeDirectoryForCurrentUser) throws {
+    #if IGNIS_VAULT_LOCAL
+    throw SSHAgentError.failed("SSH Agent is unavailable in the Ignis local build")
+    #else
     let directory = home.appendingPathComponent(".ssh")
     let file = directory.appendingPathComponent("config")
     let fm = FileManager.default
@@ -212,6 +215,7 @@ public func configureOpenSSHAgent(enabled: Bool, home: URL = FileManager.default
     let updated = try sshAgentConfig(existing, socketPath: enabled ? sshAgentSocketURL(home: home).path : nil)
     try updated.write(to: file, atomically: true, encoding: .utf8)
     try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+    #endif
 }
 
 public enum SSHAgentError: LocalizedError {

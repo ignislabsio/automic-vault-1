@@ -504,7 +504,7 @@ final class DashboardModel: ObservableObject {
     }
 
     private func items(for section: DashboardSection) -> [DashboardItem] {
-        let base = switch section {
+        let sectionItems = switch section {
         case .overview: [DashboardItem]()
         case .detectors:
             detectorItems
@@ -651,6 +651,13 @@ final class DashboardModel: ObservableObject {
                 ),
             ]
         }
+        #if IGNIS_VAULT_LOCAL
+        let base = section == .settings
+            ? sectionItems.filter { $0.id != "ssh-agent" && $0.id != "gpg-signing" }
+            : sectionItems
+        #else
+        let base = sectionItems
+        #endif
         if section == .secretUsage { return base }
         let query = searchQuery
         guard !query.isEmpty else { return base }
