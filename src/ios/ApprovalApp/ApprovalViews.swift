@@ -1,4 +1,6 @@
+#if !IGNIS_VAULT_LOCAL
 import StoreKit
+#endif
 import SwiftUI
 
 private enum ApprovalRoute: Hashable {
@@ -83,7 +85,7 @@ struct ApprovalRootView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Notifications are off", systemImage: "exclamationmark.triangle.fill")
                         .font(.headline)
-                    Text("Approval requests may only appear when you open Automic Vault.")
+                    Text("Approval requests may only appear when you open \(ApprovalAppBrand.name).")
                         .font(.callout)
                     if model.notificationAuthorizationStatus == .notDetermined {
                         Button("Enable Notifications") { Task { await model.enable() } }
@@ -410,7 +412,9 @@ private struct ApprovalMetadata: View {
 struct ApprovalSettingsView: View {
     @Bindable var model: ApprovalModel
     @Bindable var subscription: ApprovalSubscription
+    #if !IGNIS_VAULT_LOCAL
     @State private var showingManageSubscriptions = false
+    #endif
 
     var body: some View {
         Form {
@@ -439,9 +443,10 @@ struct ApprovalSettingsView: View {
             Section("Physical Separation") {
                 Label("iPhone Mirroring and Show on Mac can put Approval controls back onto a Mac when biometric protection is off.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Turn off Show on Mac for Automic Vault notifications and revoke iPhone Mirroring access if agents can control your Mac.")
+                Text("Turn off Show on Mac for \(ApprovalAppBrand.name) notifications and revoke iPhone Mirroring access if agents can control your Mac.")
                     .font(.footnote)
             }
+            #if !IGNIS_VAULT_LOCAL
             Section("Subscription") {
                 LabeledContent("iPhone Approval", value: subscription.state == .active ? "Active" : "Required")
                 if subscription.state == .active {
@@ -450,10 +455,13 @@ struct ApprovalSettingsView: View {
                     NavigationLink("Subscribe", value: ApprovalRoute.subscription)
                 }
             }
+            #endif
             Section("Connection") { Text(connectionLabel) }
         }
         .navigationTitle("Settings")
+        #if !IGNIS_VAULT_LOCAL
         .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
+        #endif
     }
 
     private var connectionLabel: String {
@@ -620,6 +628,9 @@ private extension PhoneApprovalActivity {
 
 struct ApprovalSubscriptionView: View {
     @Bindable var subscription: ApprovalSubscription
+    #if IGNIS_VAULT_LOCAL
+    var body: some View { EmptyView() }
+    #else
     @Environment(\.dismiss) private var dismiss
     @ScaledMetric(relativeTo: .largeTitle) private var symbolSize = 52
 
@@ -660,4 +671,5 @@ struct ApprovalSubscriptionView: View {
         .navigationTitle("Subscription")
         .navigationBarTitleDisplayMode(.inline)
     }
+    #endif
 }

@@ -1,12 +1,17 @@
 import Observation
+#if !IGNIS_VAULT_LOCAL
 import StoreKit
+#endif
 
 @MainActor @Observable
 final class ApprovalSubscription {
     static let shared = ApprovalSubscription()
+    #if !IGNIS_VAULT_LOCAL
     static let annualProductID = "com.automicvault.approval.annual"
     static let monthlyProductID = "com.automicvault.approval.monthly"
     static let productIDs = [annualProductID, monthlyProductID]
+
+    #endif
 
     enum State: Equatable {
         case loading
@@ -14,9 +19,19 @@ final class ApprovalSubscription {
         case active
     }
 
+    var errorMessage: String?
+
+    #if IGNIS_VAULT_LOCAL
+    let state: State = .active
+
+    private init() {}
+
+    func start() async {}
+
+    func refresh() async -> Bool { true }
+    #else
     private(set) var state: State = .loading
     private(set) var productsAvailable = false
-    var errorMessage: String?
 
     private var transactionUpdates: Task<Void, Never>?
 
@@ -99,4 +114,5 @@ final class ApprovalSubscription {
         }
         state = .active
     }
+    #endif
 }

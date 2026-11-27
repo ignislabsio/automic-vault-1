@@ -39,14 +39,14 @@ final class NotificationService: UNNotificationServiceExtension {
             if preferences.showsApprovalType {
                 details.append("Approval type: \(ticket.requiresFullReview ? "Full review" : "Routine")")
             }
-            content.body = (["Review the full request on your Mac or open Automic Vault."] + details)
+            content.body = (["Review the full request on your Mac or open \(ApprovalAppBrand.name)."] + details)
                 .joined(separator: "\n")
             content.categoryIdentifier = ticket.requiresFullReview ? "AV_REVIEW" : "AV_ROUTINE"
             contentHandler(content)
             handler = nil
         } catch {
-            content.title = "Automic Vault update"
-            content.body = "Open Automic Vault to review."
+            content.title = "\(ApprovalAppBrand.name) update"
+            content.body = "Open \(ApprovalAppBrand.name) to review."
             content.categoryIdentifier = "AV_REVIEW"
             contentHandler(content)
             handler = nil
