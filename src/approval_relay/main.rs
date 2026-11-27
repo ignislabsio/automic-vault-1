@@ -102,6 +102,8 @@ struct ApnsClients {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind = env::var("AV_APPROVAL_RELAY_BIND").unwrap_or_else(|_| "127.0.0.1:8788".into());
+    #[cfg(feature = "ignis-local")]
+    let (bind, install) = ignis_local::config(&bind)?;
     let revocation_path = env::var_os("AV_APPROVAL_RELAY_REVOCATIONS")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/var/lib/av-approval-relay/revoked-rooms"));
@@ -115,9 +117,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         revocation_path: Arc::new(revocation_path),
         apns: ApnsClients::from_environment()?,
     };
+    let app = router(state);
+    #[cfg(feature = "ignis-local")]
+    let app = install.apply(app);
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     eprintln!("Automic Vault Approval relay listening on {bind}");
-    axum::serve(listener, router(state))
+    axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
@@ -134,6 +139,237 @@ fn router(state: RelayState) -> Router {
         .route("/v1/room/{room}", axum::routing::delete(revoke_room))
         .layer(DefaultBodyLimit::max(MAX_MESSAGE_BYTES))
         .with_state(state)
+}
+
+#[cfg(feature = "ignis-local")]
+mod ignis_local {
+    use super::*;
+    use axum::extract::Request;
+    use axum::http::{HeaderValue, header};
+    use axum::middleware::{self, Next};
+    use std::net::SocketAddr;
+    use std::path::Path;
+
+    const TAILSCALE_LOGIN: &str = "tailscale-user-login";
+
+    pub(super) struct Install {
+        login: HeaderValue,
+        index: Bytes,
+        manifest: Bytes,
+        ipa: Bytes,
+    }
+
+    pub(super) fn config(bind: &str) -> Result<(SocketAddr, Install), Box<dyn std::error::Error>> {
+        let bind: SocketAddr = bind.parse()?;
+        if !bind.ip().is_loopback() {
+            return Err("Ignis Approval relay requires a loopback bind address".into());
+        }
+        let login = env::var("IGNIS_VAULT_TAILNET_LOGIN")?;
+        if login.is_empty() || login.contains(|c: char| c.is_whitespace() || c == ',') {
+            return Err("IGNIS_VAULT_TAILNET_LOGIN must name one Tailscale login".into());
+        }
+        let root = env::var_os("IGNIS_VAULT_INSTALL_ROOT")
+            .map(PathBuf::from)
+            .ok_or("IGNIS_VAULT_INSTALL_ROOT is required")?;
+        Ok((bind, Install::load(login.parse()?, &root)?))
+    }
+
+    impl Install {
+        fn load(login: HeaderValue, root: &Path) -> std::io::Result<Self> {
+            if !root.is_absolute() || !root.is_dir() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "IGNIS_VAULT_INSTALL_ROOT must be an existing absolute directory",
+                ));
+            }
+            Ok(Self {
+                login,
+                index: read_asset(root, "index.html")?,
+                manifest: read_asset(root, "manifest.plist")?,
+                ipa: read_asset(root, "app.ipa")?,
+            })
+        }
+
+        pub(super) fn apply(self, app: Router) -> Router {
+            let index = asset("text/html; charset=utf-8", self.index);
+            app.route("/install", get(index.clone()))
+                .route("/install/", get(index))
+                .route(
+                    "/install/manifest.plist",
+                    get(asset("text/xml", self.manifest)),
+                )
+                .route(
+                    "/install/app.ipa",
+                    get(asset("application/octet-stream", self.ipa)),
+                )
+                .layer(middleware::from_fn_with_state(self.login, require_login))
+        }
+    }
+
+    fn read_asset(root: &Path, name: &str) -> std::io::Result<Bytes> {
+        let path = root.join(name);
+        if !path.symlink_metadata()?.is_file() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Ignis installer assets must be regular files",
+            ));
+        }
+        std::fs::read(path).map(Bytes::from)
+    }
+
+    fn asset(
+        mime: &'static str,
+        bytes: Bytes,
+    ) -> impl FnOnce() -> std::future::Ready<Response> + Clone {
+        move || {
+            std::future::ready(
+                (
+                    [
+                        (header::CONTENT_TYPE, mime),
+                        (header::CACHE_CONTROL, "no-store"),
+                        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+                    ],
+                    bytes,
+                )
+                    .into_response(),
+            )
+        }
+    }
+
+    async fn require_login(
+        State(expected): State<HeaderValue>,
+        request: Request,
+        next: Next,
+    ) -> Response {
+        // Tailscale Serve strips client-supplied identity headers and injects its
+        // authenticated identity before forwarding to this loopback listener.
+        let values = request.headers().get_all(TAILSCALE_LOGIN);
+        let mut logins = values.iter();
+        if logins.next() != Some(&expected) || logins.next().is_some() {
+            return StatusCode::FORBIDDEN.into_response();
+        }
+        next.run(request).await
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const LOGIN: &str = "owner@example.test";
+
+        #[tokio::test]
+        async fn private_ingress_gates_installer_and_relay() {
+            let root =
+                env::temp_dir().join(format!("av-ignis-install-test-{}", std::process::id()));
+            std::fs::create_dir(&root).unwrap();
+            let assets = [
+                ("index.html", "/install", "text/html; charset=utf-8"),
+                ("index.html", "/install/", "text/html; charset=utf-8"),
+                ("manifest.plist", "/install/manifest.plist", "text/xml"),
+                ("app.ipa", "/install/app.ipa", "application/octet-stream"),
+            ];
+            for (name, _, _) in assets {
+                std::fs::write(root.join(name), name).unwrap();
+            }
+            std::fs::write(root.join("private.key"), "fixture").unwrap();
+            let install = Install::load(HeaderValue::from_static(LOGIN), &root).unwrap();
+            std::fs::remove_dir_all(root).unwrap();
+
+            let state = RelayState {
+                rooms: Arc::default(),
+                revoked_rooms: Arc::default(),
+                revocation_path: Arc::default(),
+                apns: None,
+            };
+            let app = install.apply(router(state.clone()));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let client = reqwest::Client::builder().no_proxy().build().unwrap();
+            let room = "r".repeat(43);
+            let registration = format!("/v1/register/{room}/phone");
+            for (method, path) in [
+                (reqwest::Method::GET, "/install"),
+                (reqwest::Method::GET, "/health"),
+                (reqwest::Method::PUT, registration.as_str()),
+            ] {
+                for headers in [
+                    vec![],
+                    vec!["other@example.test"],
+                    vec![LOGIN, LOGIN],
+                    vec!["owner@example.test, other@example.test"],
+                ] {
+                    let mut request = client.request(method.clone(), format!("{base}{path}"));
+                    for login in headers {
+                        request = request.header(TAILSCALE_LOGIN, login);
+                    }
+                    let response = request.send().await.unwrap();
+                    assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
+                }
+            }
+
+            let health = client
+                .get(format!("{base}/health"))
+                .header(TAILSCALE_LOGIN, LOGIN)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(health.status(), StatusCode::NO_CONTENT);
+
+            let request = client
+                .put(format!("{base}{registration}"))
+                .header(TAILSCALE_LOGIN, LOGIN)
+                .json(&json!({
+                    "token": "a".repeat(64),
+                    "environment": "sandbox",
+                    "proof": "p".repeat(43),
+                }));
+            let response = request.try_clone().unwrap().send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            assert!(state.rooms.lock().unwrap().is_empty());
+
+            let authorized_status = client
+                .get(format!("{base}/v1/registrations/{room}"))
+                .header(TAILSCALE_LOGIN, LOGIN)
+                .bearer_auth("c".repeat(43))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(authorized_status.status(), StatusCode::OK);
+            let response = request.bearer_auth("w".repeat(43)).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+            for (name, path, mime) in assets {
+                let response = client
+                    .get(format!("{base}{path}"))
+                    .header(TAILSCALE_LOGIN, LOGIN)
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK, "{path}");
+                assert_eq!(response.headers()[header::CONTENT_TYPE], mime);
+                assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+                assert_eq!(
+                    response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                    "nosniff"
+                );
+                assert_eq!(response.bytes().await.unwrap(), name);
+            }
+            for path in [
+                "/install/index.html",
+                "/install/private.key",
+                "/install/%2e%2e/private.key",
+            ] {
+                let response = client
+                    .get(format!("{base}{path}"))
+                    .header(TAILSCALE_LOGIN, LOGIN)
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+            }
+            server.abort();
+        }
+    }
 }
 
 impl RelayState {
@@ -377,6 +613,8 @@ async fn register(
     if !valid_device_token(&request.token) || !valid_identifier(&request.proof) {
         return Err(StatusCode::BAD_REQUEST);
     }
+    #[cfg(feature = "ignis-local")]
+    state.authorize(&room_id, &headers, |_| ())?;
     let apns = state.apns.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     apns.validate(&request.token, request.environment)
         .await
