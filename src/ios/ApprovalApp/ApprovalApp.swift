@@ -426,7 +426,7 @@ final class ApprovalModel {
             pending.removeAll { $0.id == ticket.requestID }
             await removeDeliveredNotifications(for: ticket.requestID)
         } catch {
-            errorMessage = "The response was not delivered. Open \(ApprovalAppBrand.name) and try again."
+            errorMessage = "The response was not delivered. Open the app and try again."
         }
     }
 
