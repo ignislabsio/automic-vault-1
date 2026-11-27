@@ -28,6 +28,14 @@ bun install --frozen-lockfile
 bun src/main.ts COMPANY_SERVICE_API_KEY https://YOUR-MAC.YOUR-TAILNET.ts.net:8664 8664
 ```
 
+For the separately signed local Ignis build, add `--ignis-local` before the
+Secret Name. This selects only the Ignis app at
+`/Applications/Ignis Automic Vault.app`, signed by Ignis team `8G29DNN4U4`.
+The default still selects only the upstream publisher. Neither mode accepts
+an arbitrary client path or signer. The Ignis app uses fresh custody and its
+own Approval setup; an upstream phone enrollment does not approve its saves.
+Building or installing this app is not proof of phone or locked-Mac delivery.
+
 Use a dedicated, reviewed tailnet listener; do not reuse a public Funnel route.
 Only the printed phone link carries the one-request bearer capability. Treat
 it as permission to offer one candidate Value, keep it within the intended
