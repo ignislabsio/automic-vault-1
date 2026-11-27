@@ -32,7 +32,7 @@ pub const APPROVAL_SERVICE: &std::ffi::CStr = c"com.ignislabs.automicvault.appro
 pub const APPROVAL_SERVICE: &std::ffi::CStr = c"com.automicvault.av2.approval";
 
 #[cfg(feature = "ignis-local")]
-pub const MENU_HELPER_CODE_SIGNING_REQUIREMENT: &str = r#"anchor apple generic and certificate leaf[subject.OU] = 8G29DNN4U4 and identifier "com.ignislabs.automicvault""#;
+pub const MENU_HELPER_CODE_SIGNING_REQUIREMENT: &str = r#"anchor apple generic and certificate leaf[subject.OU] = "8G29DNN4U4" and identifier "com.ignislabs.automicvault""#;
 #[cfg(not(feature = "ignis-local"))]
 pub const MENU_HELPER_CODE_SIGNING_REQUIREMENT: &str = r#"anchor apple generic and certificate leaf[subject.OU] = ZU76A67LGU and identifier "com.automicvault""#;
 

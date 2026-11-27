@@ -1,5 +1,6 @@
 import { guardian } from "./guardian";
 import { vaultTarget } from "./vault-target";
+import { saveToVault } from "./save-to-vault";
 
 const args = process.argv.slice(2);
 const ignisLocal = args[0] === "--ignis-local";
@@ -39,17 +40,7 @@ if (!build.success || build.outputs.length !== 1) {
 const intake = await guardian({
   name, origin: new URL(origin).origin, script: await build.outputs[0].text(),
   async save(key, value) {
-    const child = Bun.spawn([av, "save", "--stdin", "--available-while-locked", key], {
-      stdin: "pipe", stdout: "ignore", stderr: "ignore",
-    });
-    const timer = setTimeout(() => child.kill(), 180_000);
-    try {
-      child.stdin.write(value);
-      child.stdin.end();
-      if (await child.exited !== 0) throw new Error("Vault did not acknowledge save");
-    } finally {
-      clearTimeout(timer);
-    }
+    await saveToVault(target, key, value);
   },
 });
 const server = Bun.serve({

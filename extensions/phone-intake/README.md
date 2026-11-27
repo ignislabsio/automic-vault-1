@@ -35,6 +35,10 @@ The default still selects only the upstream publisher. Neither mode accepts
 an arbitrary client path or signer. The Ignis app uses fresh custody and its
 own Approval setup; an upstream phone enrollment does not approve its saves.
 Building or installing this app is not proof of phone or locked-Mac delivery.
+Immediately before sending a Value, the guardian starts the selected client
+with an empty stdin pipe, validates that running process's exact signer, and
+then writes only to that same pipe. Replacing a pathname after prompt creation
+cannot substitute an unsigned recipient. Failed verification sends no Value.
 
 Use a dedicated, reviewed tailnet listener; do not reuse a public Funnel route.
 Only the printed phone link carries the one-request bearer capability. Treat
