@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { requireProtectedExecutable } from "../src/protected-path";
+import { hasNoExtendedACL, requireProtectedExecutable } from "../src/protected-path";
+
+test("extended attributes cannot conceal a write-grant ACL", () => {
+  expect(hasNoExtendedACL("-rwxr-xr-x@ 1 root wheel 123 /protected/client\n")).toBe(true);
+  expect(hasNoExtendedACL("-rwxr-xr-x+ 1 root wheel 123 /protected/client\n 0: group:staff allow write\n")).toBe(false);
+  expect(hasNoExtendedACL("-rwxr-xr-x@ 1 root wheel 123 /protected/client\n 0: group:staff allow write\n")).toBe(false);
+  expect(hasNoExtendedACL("")).toBe(false);
+});
 
 test("an unprotected or missing executable fails before any client starts", async () => {
   await expect(requireProtectedExecutable("relative/av")).rejects.toThrow();

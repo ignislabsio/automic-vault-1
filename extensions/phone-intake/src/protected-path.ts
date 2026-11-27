@@ -1,6 +1,14 @@
 import { lstatSync } from "node:fs";
 import { isAbsolute, parse, join } from "node:path";
 
+export function hasNoExtendedACL(output: string) {
+  const lines = output.trimEnd().split("\n");
+  const mode = lines[0]?.trim().split(/\s/)[0] ?? "";
+  // macOS shows @ instead of + when both xattrs and an ACL exist. The -e
+  // listing still includes ACL rows, so the mode marker alone is insufficient.
+  return lines.length === 1 && /^[-d][rwxStTs-]{9}[@.]?$/.test(mode);
+}
+
 // A live signature check cannot undo instructions an untrusted initial image
 // executed before that check. Require a privileged installation before spawn.
 export async function requireProtectedExecutable(executable: string) {
@@ -16,9 +24,9 @@ export async function requireProtectedExecutable(executable: string) {
         (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory())) {
       throw new Error("Vault installation must be root-owned and protected against replacement");
     }
-    const acl = Bun.spawn(["/bin/ls", "-lde", path], { stdout: "pipe", stderr: "ignore" });
+    const acl = Bun.spawn(["/bin/ls", "-ldeb", path], { stdout: "pipe", stderr: "ignore" });
     const output = await new Response(acl.stdout).text();
-    if (await acl.exited !== 0 || output.trim().split(/\s/)[0]?.includes("+")) {
+    if (await acl.exited !== 0 || !hasNoExtendedACL(output)) {
       throw new Error("Vault installation has an unsupported access-control list");
     }
   }
