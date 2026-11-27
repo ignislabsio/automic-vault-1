@@ -334,7 +334,16 @@ final class ApprovalModel {
     private func registerIfPossible() async {
         guard let relay, let deviceToken, await updateNotificationSettings() else { return }
         do {
-            #if DEBUG
+            #if IGNIS_VAULT_LOCAL
+            let environment: ApprovalDeviceRegistration.Environment
+            switch Bundle.main.object(forInfoDictionaryKey: "ApprovalPushEnvironment") as? String {
+            case "development": environment = .sandbox
+            case "production": environment = .production
+            default:
+                state = .unavailable("The push environment is invalid.")
+                return
+            }
+            #elseif DEBUG
             let environment = ApprovalDeviceRegistration.Environment.sandbox
             #else
             let environment = ApprovalDeviceRegistration.Environment.production
@@ -417,7 +426,7 @@ final class ApprovalModel {
             pending.removeAll { $0.id == ticket.requestID }
             await removeDeliveredNotifications(for: ticket.requestID)
         } catch {
-            errorMessage = "The response was not delivered. Open Automic Vault and try again."
+            errorMessage = "The response was not delivered. Open the app and try again."
         }
     }
 
@@ -467,7 +476,7 @@ final class ApprovalModel {
         do {
             return try await context.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: "Approve this Automic Vault request"
+                localizedReason: "Approve this \(ApprovalAppBrand.name) request"
             )
         } catch {
             errorMessage = "Approval was not authenticated."

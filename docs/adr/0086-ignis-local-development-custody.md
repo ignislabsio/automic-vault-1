@@ -27,8 +27,20 @@ control. Code requirements scoped to the signing team cannot protect against
 an actor able to sign new binaries with that team's identity. The local flavor
 does not authorize vendor Isotope execution or adapt its installation paths.
 
-Secret Authorization and Availability are unchanged. iPhone Approval requires
-a companion that can join the separate Ignis Approval group, which this Mac
-flavor does not provide. The build therefore does not establish locked phone
-intake or iCloud delivery. Verify locked-session runtime policy and custody
+Secret Authorization and Availability are unchanged. The separate
+[`IgnisLocal` iOS companion](../../src/ios/ApprovalApp/IGNIS-LOCAL.md) joins the
+Ignis Approval group and uses the same private relay as the matching Mac
+flavor. Its internal build eligibility replaces upstream StoreKit eligibility;
+it does not replace explicit human Approval or the configured biometric check.
+The notification extension uses the same isolated group and its own bundle ID.
+Successful signing does not establish enrollment, notification delivery,
+locked phone intake, or iCloud delivery. Verify runtime policy and custody
 separately on each Mac before using operational Values.
+
+The Ignis relay binds only to loopback behind Tailscale Serve. Serve strips
+client-supplied identity headers and supplies the authenticated user's login;
+the relay accepts exactly the configured owner. Loopback callers remain inside
+the trusted host boundary. This check is an ingress restriction, never native
+Approval authority: room credentials, request binding and human Approval remain
+required. Installer routes serve only the three fixed, read-only assets loaded
+at startup; the IPA must match the independently validated signed export.

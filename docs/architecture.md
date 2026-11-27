@@ -873,13 +873,23 @@ summaries omit Secret Names, working directories, and
 expanded request details, are excluded from backup, and do not claim that the
 Mac accepted a response, allowed an operation, or why it canceled a request.
 
-Before signing and transmitting any allow response, the iPhone app verifies a
+Before signing and transmitting any allow response, the upstream iPhone app verifies a
 current iPhone Approval subscription from StoreKit's signed transaction ledger.
 Missing, expired, revoked, or unverified entitlement state fails closed. Denial
 does not require a subscription. Subscription state is not sent to the relay or
 Mac and does not participate in Authorization Policy; a subscription never
 authorizes a request or weakens the Mac's response validation and recording
 requirements.
+
+The private `IgnisLocal` configuration has build-time internal eligibility
+instead of upstream StoreKit eligibility. Its app and notification extension
+are signed by the Ignis team, share only the independent Ignis Approval group,
+and use the fixed private Ignis relay. This does not authorize an operation:
+the same human response, configured biometric checks, request digest, replay
+checks, and native Mac enforcement still apply. See the
+[Ignis companion build](../src/ios/ApprovalApp/IGNIS-LOCAL.md). An archive or
+signed package does not establish device enrollment, APNs receipt, or successful
+locked-session custody.
 
 Biometric protection is optional and configured independently on each iPhone.
 When enabled, an Approval requires Face ID or Touch ID on that physical iPhone,
